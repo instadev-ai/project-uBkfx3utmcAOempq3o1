@@ -15,6 +15,10 @@ class SkinAnalysisService {
       throw new Error("Please enter a valid API key");
     }
 
+    // Intentionally throwing an error to test logging
+    console.log("About to throw a test error");
+    throw new Error("This is a test error to check logging!");
+
     this.openai = new OpenAI({
       apiKey: apiKey,
       dangerouslyAllowBrowser: true,
@@ -33,7 +37,7 @@ class SkinAnalysisService {
       console.log("Preparing OpenAI request...");
       
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini",  // Using the correct model name
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
