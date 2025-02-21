@@ -26,37 +26,46 @@ class SkinAnalysisService {
       // Remove the data:image/jpeg;base64, prefix if present
       const base64Image = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
 
-      // Validate the base64 string
       if (!base64Image || base64Image.trim() === "") {
         throw new Error("Invalid image data");
       }
 
       console.log("Preparing OpenAI request...");
-      
+
+      // First, try a simple test request to verify API access
+      try {
+        await this.openai.chat.completions.create({
+          model: "gpt-4",
+          messages: [{ role: "user", content: "Test connection" }],
+          max_tokens: 5
+        });
+      } catch (testError) {
+        console.error("API test failed:", testError);
+        throw new Error("Failed to connect to OpenAI API. Please check your API key.");
+      }
+
+      // Proceed with the actual analysis
       const response = await this.openai.chat.completions.create({
         model: "gpt-4-vision-preview",
         messages: [
           {
-            role: "system",
-            content: "You are a dermatologist AI assistant. Analyze the skin in the image and provide insights about skin health.",
-          },
-          {
             role: "user",
             content: [
               {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`,
-                },
+                type: "text",
+                text: "Analyze this skin image and provide a detailed assessment in this format:\nCondition: (describe overall condition)\nConcerns: (list main issues)\nRecommendations: (list suggestions)"
               },
               {
-                type: "text",
-                text: "Analyze this skin image and provide:\n1. Condition: Overall skin condition\n2. Concerns: List main issues\n3. Recommendations: Suggest improvements",
-              },
-            ],
-          },
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`
+                }
+              }
+            ]
+          }
         ],
         max_tokens: 500,
+        temperature: 0.7
       });
 
       console.log("Processing OpenAI response...");
@@ -66,118 +75,75 @@ class SkinAnalysisService {
         throw new Error("No analysis received from OpenAI");
       }
 
-      console.log("Parsing analysis...");
+      console.log("Raw analysis:", analysis);
 
       // Initialize result
       const result: SkinAnalysisResult = {
         condition: "",
         concerns: [],
         recommendations: [],
-        confidence: 0.95,
+        confidence: 0.95
       };
 
-      // Split into sections and parse
-      const sections = analysis.split("\n");
-      let currentSection: "condition" | "concerns" | "recommendations" | null = null;
+      // Parse the response
+      const sections = analysis.split('\n');
+      let currentSection: 'condition' | 'concerns' | 'recommendations' | null = null;
 
       for (const line of sections) {
-        const trimmedLine = line.trim();
+        const trimmedLine = line.trim().toLowerCase();
         
-        // Skip empty lines
-        if (!trimmedLine) continue;
-
-        // Check for section headers
-        if (trimmedLine.toLowerCase().startsWith("condition:")) {
-          currentSection = "condition";
-          const content = trimmedLine.substring(9).trim();
-          if (content) result.condition = content;
-          continue;
-        }
-        if (trimmedLine.toLowerCase().startsWith("concerns:")) {
-          currentSection = "concerns";
-          continue;
-        }
-        if (trimmedLine.toLowerCase().startsWith("recommendations:")) {
-          currentSection = "recommendations";
-          continue;
-        }
-
-        // Process content based on current section
-        if (currentSection) {
-          if (trimmedLine.startsWith("-") || trimmedLine.startsWith("•")) {
-            const content = trimmedLine.substring(1).trim();
-            if (content) {
-              if (currentSection === "concerns") result.concerns.push(content);
-              if (currentSection === "recommendations") result.recommendations.push(content);
-            }
-          } else if (!result.condition && currentSection === "condition") {
-            result.condition = trimmedLine;
-          } else if (currentSection === "concerns" && trimmedLine.length > 3) {
-            result.concerns.push(trimmedLine);
-          } else if (currentSection === "recommendations" && trimmedLine.length > 3) {
-            result.recommendations.push(trimmedLine);
+        if (trimmedLine.startsWith('condition:')) {
+          currentSection = 'condition';
+          result.condition = line.substring(line.indexOf(':') + 1).trim();
+        } else if (trimmedLine.startsWith('concerns:')) {
+          currentSection = 'concerns';
+        } else if (trimmedLine.startsWith('recommendations:')) {
+          currentSection = 'recommendations';
+        } else if (trimmedLine && currentSection) {
+          if (currentSection === 'concerns' && !trimmedLine.startsWith('recommendations:')) {
+            result.concerns.push(line.trim());
+          } else if (currentSection === 'recommendations') {
+            result.recommendations.push(line.trim());
           }
         }
       }
 
-      // Validate results
+      // Clean up the lists (remove empty items and bullet points)
+      result.concerns = result.concerns
+        .map(item => item.replace(/^[-•*]\s*/, ''))
+        .filter(item => item.length > 0);
+      
+      result.recommendations = result.recommendations
+        .map(item => item.replace(/^[-•*]\s*/, ''))
+        .filter(item => item.length > 0);
+
+      // Validate the result
       if (!result.condition || result.concerns.length === 0 || result.recommendations.length === 0) {
-        console.log("Incomplete analysis, attempting alternative parsing...");
-        
-        // Alternative parsing for unstructured responses
-        const lines = analysis.split("\n").filter(line => line.trim());
-        
-        if (!result.condition && lines.length > 0) {
-          result.condition = lines[0].replace(/^(condition:?\s*)/i, '').trim();
-        }
-        
-        if (result.concerns.length === 0 && lines.length > 1) {
-          const concernsText = lines.find(l => l.toLowerCase().includes("concern"))?.replace(/^(concerns:?\s*)/i, '').trim();
-          if (concernsText) {
-            result.concerns = [concernsText];
-          }
-        }
-        
-        if (result.recommendations.length === 0 && lines.length > 2) {
-          const recsText = lines.find(l => l.toLowerCase().includes("recommend"))?.replace(/^(recommendations:?\s*)/i, '').trim();
-          if (recsText) {
-            result.recommendations = [recsText];
-          }
-        }
+        throw new Error("Failed to parse analysis results");
       }
 
-      // Final validation
-      if (!result.condition || result.concerns.length === 0 || result.recommendations.length === 0) {
-        throw new Error("Could not extract complete analysis from the response");
-      }
-
-      console.log("Analysis completed successfully");
+      console.log("Final parsed result:", result);
       return result;
 
     } catch (error) {
-      console.error("Error in analyzeSkin:", error);
-      
-      // Handle specific error cases
+      console.error("Error details:", error);
+
       if (error instanceof Error) {
-        if (error.message.includes("API key")) {
-          throw new Error("Invalid API key. Please check your OpenAI API key and try again.");
+        if (error.message.includes('API key')) {
+          throw new Error("Invalid API key. Please check your OpenAI API key.");
         }
-        if (error.message.includes("insufficient_quota")) {
-          throw new Error("OpenAI API quota exceeded. Please check your account balance.");
+        if (error.message.includes('insufficient_quota')) {
+          throw new Error("Your OpenAI API quota has been exceeded. Please check your billing.");
         }
-        if (error.message.includes("rate_limit")) {
+        if (error.message.includes('rate_limit')) {
           throw new Error("Too many requests. Please wait a moment and try again.");
         }
-        if (error.message.includes("invalid_request_error")) {
-          throw new Error("Invalid request. Please try with a different image.");
+        if (error.message.includes('model')) {
+          throw new Error("The AI model is currently unavailable. Please try again in a few minutes.");
         }
-        if (error.message.includes("model")) {
-          throw new Error("Service configuration error. Please try again later.");
-        }
-        
-        throw new Error(error.message);
+        throw error;
       }
-      
+
       throw new Error("An unexpected error occurred. Please try again.");
     }
   }
