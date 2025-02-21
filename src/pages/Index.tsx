@@ -13,6 +13,7 @@ const Index = () => {
   const [currentImage, setCurrentImage] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleImageCapture = async (imageData: string) => {
@@ -27,19 +28,28 @@ const Index = () => {
 
     setCurrentImage(imageData);
     setIsCapturing(false);
-    setIsAnalyzing(true);
+    setIsLoading(true);
 
     try {
+      console.log("Starting analysis...");
       const analysisService = new SkinAnalysisService(apiKey);
       const result = await analysisService.analyzeSkin(imageData);
+      console.log("Analysis completed:", result);
+      
       setAnalysisResult(result);
+      setIsAnalyzing(true);
     } catch (error) {
+      console.error("Analysis error:", error);
       toast({
         title: "Analysis Failed",
-        description: "Unable to analyze the image. Please try again.",
+        description: error instanceof Error 
+          ? error.message 
+          : "Unable to analyze the image. Please try again.",
         variant: "destructive",
       });
       setIsAnalyzing(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -48,6 +58,7 @@ const Index = () => {
     setIsAnalyzing(false);
     setCurrentImage(null);
     setAnalysisResult(null);
+    setIsLoading(false);
   };
 
   const handleApiKeySubmit = (key: string) => {
@@ -86,17 +97,17 @@ const Index = () => {
               <Button
                 className="w-full bg-rose-500 hover:bg-rose-600 text-white h-12 rounded-xl"
                 onClick={() => setIsCapturing(true)}
-                disabled={!apiKey}
+                disabled={!apiKey || isLoading}
               >
-                Take Photo
+                {isLoading ? "Analyzing..." : "Take Photo"}
               </Button>
               <Button
                 variant="outline"
                 className="w-full h-12 rounded-xl border-rose-200 text-rose-500 hover:bg-rose-50"
                 onClick={() => setIsCapturing(true)}
-                disabled={!apiKey}
+                disabled={!apiKey || isLoading}
               >
-                Upload Photo
+                {isLoading ? "Analyzing..." : "Upload Photo"}
               </Button>
             </div>
           </Card>
@@ -118,6 +129,19 @@ const Index = () => {
           </Card>
         </div>
       </main>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="p-6 rounded-2xl border-0 bg-white shadow-2xl">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto"></div>
+              <p className="mt-4 text-gray-800 font-medium">Analyzing your skin...</p>
+              <p className="mt-2 text-sm text-gray-600">This may take a few moments</p>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Camera/Upload Modal */}
       {isCapturing && (

@@ -22,13 +22,20 @@ class SkinAnalysisService {
       // Remove the data:image/jpeg;base64, prefix if present
       const base64Image = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
 
+      // Validate the base64 string
+      if (!base64Image || base64Image.trim() === "") {
+        throw new Error("Invalid image data");
+      }
+
+      console.log("Sending request to OpenAI...");
+      
       const response = await this.openai.chat.completions.create({
         model: "gpt-4-vision-preview",
         messages: [
           {
             role: "system",
             content:
-              "You are a dermatologist AI assistant. Analyze the skin in the image and provide detailed insights about skin health, concerns, and recommendations.",
+              "You are a dermatologist AI assistant. Analyze the skin in the image and provide detailed insights about skin health, concerns, and recommendations. Format your response in clear sections: 'Condition:', 'Concerns:', and 'Recommendations:'.",
           },
           {
             role: "user",
@@ -49,42 +56,63 @@ class SkinAnalysisService {
         max_tokens: 500,
       });
 
+      console.log("Received response from OpenAI");
+
       const analysis = response.choices[0].message.content;
-      
-      // Parse the response into structured data
-      // This is a simple parsing example - you might want to make it more sophisticated
+      if (!analysis) {
+        throw new Error("No analysis received from OpenAI");
+      }
+
+      console.log("Raw analysis:", analysis);
+
+      // Initialize with default values
       const result: SkinAnalysisResult = {
-        condition: "Analyzed",
-        concerns: ["Analyzing your skin..."],
-        recommendations: ["Processing recommendations..."],
+        condition: "",
+        concerns: [],
+        recommendations: [],
         confidence: 0.95,
       };
 
-      if (analysis) {
-        const sections = analysis.split("\n\n");
-        sections.forEach((section) => {
-          if (section.toLowerCase().includes("condition")) {
-            result.condition = section.split(":")[1]?.trim() || result.condition;
-          } else if (section.toLowerCase().includes("concerns")) {
-            result.concerns = section
-              .split(":")[1]
-              ?.split("-")
-              .map((s) => s.trim())
-              .filter(Boolean) || result.concerns;
-          } else if (section.toLowerCase().includes("recommendations")) {
-            result.recommendations = section
-              .split(":")[1]
-              ?.split("-")
-              .map((s) => s.trim())
-              .filter(Boolean) || result.recommendations;
+      // Parse the response into structured data
+      const sections = analysis.split("\n");
+      let currentSection: "condition" | "concerns" | "recommendations" | null = null;
+
+      for (const line of sections) {
+        const trimmedLine = line.trim();
+        
+        if (trimmedLine.toLowerCase().startsWith("condition:")) {
+          currentSection = "condition";
+          result.condition = trimmedLine.substring(10).trim();
+        } else if (trimmedLine.toLowerCase().startsWith("concerns:")) {
+          currentSection = "concerns";
+        } else if (trimmedLine.toLowerCase().startsWith("recommendations:")) {
+          currentSection = "recommendations";
+        } else if (trimmedLine.startsWith("- ") && currentSection) {
+          const item = trimmedLine.substring(2).trim();
+          if (currentSection === "concerns") {
+            result.concerns.push(item);
+          } else if (currentSection === "recommendations") {
+            result.recommendations.push(item);
           }
-        });
+        }
       }
 
+      // Validate the result
+      if (!result.condition || result.concerns.length === 0 || result.recommendations.length === 0) {
+        console.error("Invalid analysis result:", result);
+        throw new Error("Failed to parse analysis results");
+      }
+
+      console.log("Final parsed result:", result);
       return result;
+
     } catch (error) {
-      console.error("Error analyzing skin:", error);
-      throw new Error("Failed to analyze skin image");
+      console.error("Error in analyzeSkin:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to analyze skin image"
+      );
     }
   }
 }
