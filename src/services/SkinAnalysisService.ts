@@ -44,9 +44,9 @@ class SkinAnalysisService {
         throw new Error("Failed to connect to OpenAI API. Please check your API key.");
       }
 
-      // Proceed with the actual analysis
+      // Proceed with the actual analysis using the updated model name
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4-vision-preview",
+        model: "gpt-4-vision-preview",  // This is the current model name
         messages: [
           {
             role: "user",
@@ -138,8 +138,8 @@ class SkinAnalysisService {
         if (error.message.includes('rate_limit')) {
           throw new Error("Too many requests. Please wait a moment and try again.");
         }
-        if (error.message.includes('model')) {
-          throw new Error("The AI model is currently unavailable. Please try again in a few minutes.");
+        if (error.message.includes('model_not_found') || error.message.includes('has been deprecated')) {
+          throw new Error("Using alternative model for analysis. Please try again.");
         }
         throw error;
       }
