@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
+import { useToast } from "./ui/use-toast";
 
 interface ImageCaptureProps {
   onImageCapture: (image: string) => void;
@@ -11,6 +12,7 @@ const ImageCapture = ({ onImageCapture, onClose }: ImageCaptureProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
+  const { toast } = useToast();
 
   const startCamera = async () => {
     try {
@@ -24,6 +26,11 @@ const ImageCapture = ({ onImageCapture, onClose }: ImageCaptureProps) => {
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
+      toast({
+        title: "Camera Error",
+        description: "Unable to access camera. Please check permissions.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -43,23 +50,71 @@ const ImageCapture = ({ onImageCapture, onClose }: ImageCaptureProps) => {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg");
+        const imageData = canvas.toDataURL("image/jpeg", 0.8);
         onImageCapture(imageData);
         stopCamera();
       }
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const validateImage = (file: File): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const imageData = reader.result as string;
-        onImageCapture(imageData);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please select an image file (JPEG, PNG, etc.)",
+        variant: "destructive",
+      });
+      return;
     }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Please select an image under 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate image
+    const isValid = await validateImage(file);
+    if (!isValid) {
+      toast({
+        title: "Invalid Image",
+        description: "The selected file appears to be corrupted",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Process valid image
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const imageData = reader.result as string;
+      onImageCapture(imageData);
+    };
+    reader.onerror = () => {
+      toast({
+        title: "Upload Error",
+        description: "Failed to process the image. Please try again.",
+        variant: "destructive",
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
