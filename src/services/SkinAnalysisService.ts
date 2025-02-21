@@ -33,7 +33,7 @@ class SkinAnalysisService {
       console.log("Preparing OpenAI request...");
       
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4-0",  // Using the correct model name
+        model: "gpt-4o-mini",  // Using the correct model name
         messages: [
           {
             role: "user",
@@ -51,8 +51,7 @@ class SkinAnalysisService {
             ]
           }
         ],
-        max_tokens: 500,
-        temperature: 0.7
+        max_tokens: 300
       });
 
       console.log("Processing OpenAI response...");
