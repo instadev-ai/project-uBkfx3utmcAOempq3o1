@@ -32,21 +32,9 @@ class SkinAnalysisService {
 
       console.log("Preparing OpenAI request...");
 
-      // First, try a simple test request to verify API access
-      try {
-        await this.openai.chat.completions.create({
-          model: "gpt-4",
-          messages: [{ role: "user", content: "Test connection" }],
-          max_tokens: 5
-        });
-      } catch (testError) {
-        console.error("API test failed:", testError);
-        throw new Error("Failed to connect to OpenAI API. Please check your API key.");
-      }
-
-      // Proceed with the actual analysis using the updated model name
+      // Proceed with the analysis using the current model name
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4-vision-preview",  // This is the current model name
+        model: "gpt-4v",  // Updated model name
         messages: [
           {
             role: "user",
@@ -139,7 +127,7 @@ class SkinAnalysisService {
           throw new Error("Too many requests. Please wait a moment and try again.");
         }
         if (error.message.includes('model_not_found') || error.message.includes('has been deprecated')) {
-          throw new Error("Using alternative model for analysis. Please try again.");
+          throw new Error("The AI service is temporarily unavailable. Please try again later.");
         }
         throw error;
       }
