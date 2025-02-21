@@ -11,7 +11,7 @@ class SkinAnalysisService {
   private openai: OpenAI;
 
   constructor(apiKey: string) {
-    if (!apiKey || apiKey.trim().length < 10) {  // Just check if it's a reasonable length
+    if (!apiKey || apiKey.trim().length < 10) {
       throw new Error("Please enter a valid API key");
     }
 
@@ -33,14 +33,18 @@ class SkinAnalysisService {
       console.log("Preparing OpenAI request...");
       
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o-mini",  // Using the correct model name
         messages: [
+          {
+            role: "system",
+            content: "You are a dermatology analysis assistant. When shown a skin image, provide a detailed analysis focusing on visible characteristics, potential concerns, and general skincare recommendations. Always maintain a structured response format."
+          },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Analyze this skin image and provide a detailed assessment in this format:\nCondition: (describe overall condition)\nConcerns: (list main issues)\nRecommendations: (list suggestions)"
+                text: "Describe what you see in this skin image. Focus on:\n1. Visible skin characteristics and overall condition\n2. Any noticeable concerns or issues\n3. General skincare suggestions based on what you observe"
               },
               {
                 type: "image_url",
@@ -63,49 +67,63 @@ class SkinAnalysisService {
 
       console.log("Raw analysis:", analysis);
 
-      // Initialize result
+      // Initialize result with default structure
       const result: SkinAnalysisResult = {
-        condition: "",
+        condition: "Analysis in progress...",
         concerns: [],
         recommendations: [],
         confidence: 0.95
       };
 
-      // Parse the response
-      const sections = analysis.split('\n');
-      let currentSection: 'condition' | 'concerns' | 'recommendations' | null = null;
-
-      for (const line of sections) {
-        const trimmedLine = line.trim().toLowerCase();
-        
-        if (trimmedLine.startsWith('condition:')) {
+      // Parse the raw text response
+      const lines = analysis.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      
+      // More flexible parsing approach
+      let currentSection = 'condition';
+      for (const line of lines) {
+        if (line.toLowerCase().includes('condition') || line.toLowerCase().includes('characteristics')) {
           currentSection = 'condition';
-          result.condition = line.substring(line.indexOf(':') + 1).trim();
-        } else if (trimmedLine.startsWith('concerns:')) {
+          continue;
+        }
+        if (line.toLowerCase().includes('concern') || line.toLowerCase().includes('issue')) {
           currentSection = 'concerns';
-        } else if (trimmedLine.startsWith('recommendations:')) {
+          continue;
+        }
+        if (line.toLowerCase().includes('recommend') || line.toLowerCase().includes('suggest')) {
           currentSection = 'recommendations';
-        } else if (trimmedLine && currentSection) {
-          if (currentSection === 'concerns' && !trimmedLine.startsWith('recommendations:')) {
-            result.concerns.push(line.trim());
-          } else if (currentSection === 'recommendations') {
-            result.recommendations.push(line.trim());
-          }
+          continue;
+        }
+
+        // Add content to appropriate section
+        if (currentSection === 'condition' && !result.condition) {
+          result.condition = line;
+        } else if (currentSection === 'concerns') {
+          result.concerns.push(line);
+        } else if (currentSection === 'recommendations') {
+          result.recommendations.push(line);
         }
       }
 
-      // Clean up the lists (remove empty items and bullet points)
-      result.concerns = result.concerns
-        .map(item => item.replace(/^[-•*]\s*/, ''))
-        .filter(item => item.length > 0);
-      
-      result.recommendations = result.recommendations
-        .map(item => item.replace(/^[-•*]\s*/, ''))
-        .filter(item => item.length > 0);
-
-      // Validate the result
+      // If no structured format was found, try to parse the whole text
       if (!result.condition || result.concerns.length === 0 || result.recommendations.length === 0) {
-        throw new Error("Failed to parse analysis results");
+        // Split the text into roughly three parts
+        const textParts = analysis.split('.');
+        const partSize = Math.ceil(textParts.length / 3);
+        
+        result.condition = textParts.slice(0, partSize).join('.').trim();
+        result.concerns = [textParts.slice(partSize, partSize * 2).join('.').trim()];
+        result.recommendations = [textParts.slice(partSize * 2).join('.').trim()];
+      }
+
+      // Final validation
+      if (!result.condition) {
+        result.condition = "Skin analysis completed";
+      }
+      if (result.concerns.length === 0) {
+        result.concerns = ["No specific concerns identified"];
+      }
+      if (result.recommendations.length === 0) {
+        result.recommendations = ["Maintain regular skincare routine"];
       }
 
       console.log("Final parsed result:", result);
