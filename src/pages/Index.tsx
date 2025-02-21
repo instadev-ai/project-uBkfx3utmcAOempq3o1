@@ -1,9 +1,46 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
+import ImageCapture from "@/components/ImageCapture";
+import AnalysisResults from "@/components/AnalysisResults";
+import SkinAnalysisService from "@/services/SkinAnalysisService";
+import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
+  const [isCapturing, setIsCapturing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [currentImage, setCurrentImage] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const { toast } = useToast();
+
+  const handleImageCapture = async (imageData: string) => {
+    setCurrentImage(imageData);
+    setIsCapturing(false);
+    setIsAnalyzing(true);
+
+    try {
+      // Initialize the service with your API key
+      const apiKey = "your-openai-api-key"; // Replace with actual key management
+      const analysisService = new SkinAnalysisService(apiKey);
+      
+      const result = await analysisService.analyzeSkin(imageData);
+      setAnalysisResult(result);
+    } catch (error) {
+      toast({
+        title: "Analysis Failed",
+        description: "Unable to analyze the image. Please try again.",
+        variant: "destructive",
+      });
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleClose = () => {
+    setIsCapturing(false);
+    setIsAnalyzing(false);
+    setCurrentImage(null);
+    setAnalysisResult(null);
+  };
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] px-4 py-6 font-sans">
@@ -53,13 +90,14 @@ const Index = () => {
             <div className="space-y-4">
               <Button
                 className="w-full bg-rose-500 hover:bg-rose-600 text-white h-12 rounded-xl"
-                onClick={() => setIsAnalyzing(true)}
+                onClick={() => setIsCapturing(true)}
               >
                 Take Photo
               </Button>
               <Button
                 variant="outline"
                 className="w-full h-12 rounded-xl border-rose-200 text-rose-500 hover:bg-rose-50"
+                onClick={() => setIsCapturing(true)}
               >
                 Upload Photo
               </Button>
@@ -79,6 +117,23 @@ const Index = () => {
           </div>
         </div>
       </main>
+
+      {/* Camera/Upload Modal */}
+      {isCapturing && (
+        <ImageCapture
+          onImageCapture={handleImageCapture}
+          onClose={() => setIsCapturing(false)}
+        />
+      )}
+
+      {/* Analysis Results */}
+      {isAnalyzing && analysisResult && currentImage && (
+        <AnalysisResults
+          result={analysisResult}
+          image={currentImage}
+          onClose={handleClose}
+        />
+      )}
     </div>
   );
 };
