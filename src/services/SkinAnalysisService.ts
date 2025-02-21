@@ -1,9 +1,7 @@
 import OpenAI from "openai";
 
 export interface SkinAnalysisResult {
-  condition: string;
-  concerns: string[];
-  recommendations: string[];
+  analysis: string;
   confidence: number;
 }
 
@@ -73,3 +71,5 @@ class SkinAnalysisService {
     }
   }
 }
+
+export default SkinAnalysisService;
