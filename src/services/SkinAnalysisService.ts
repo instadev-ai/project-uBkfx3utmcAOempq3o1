@@ -94,6 +94,25 @@ class SkinAnalysisService {
           } else if (currentSection === "recommendations") {
             result.recommendations.push(item);
           }
+        } else if (trimmedLine && currentSection) {
+          // Handle cases where bullet points aren't used
+          if (currentSection === "condition" && !result.condition) {
+            result.condition = trimmedLine;
+          } else if (currentSection === "concerns") {
+            result.concerns.push(trimmedLine);
+          } else if (currentSection === "recommendations") {
+            result.recommendations.push(trimmedLine);
+          }
+        }
+      }
+
+      // If no structured format was found, try to parse the whole text
+      if (!result.condition && !result.concerns.length && !result.recommendations.length) {
+        const lines = analysis.split("\n").filter(line => line.trim());
+        if (lines.length >= 3) {
+          result.condition = lines[0];
+          result.concerns = [lines[1]];
+          result.recommendations = [lines[2]];
         }
       }
 
@@ -108,6 +127,9 @@ class SkinAnalysisService {
 
     } catch (error) {
       console.error("Error in analyzeSkin:", error);
+      if (error instanceof Error && error.message.includes("model")) {
+        throw new Error("Service temporarily unavailable. Please try again later.");
+      }
       throw new Error(
         error instanceof Error 
           ? error.message 
