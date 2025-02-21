@@ -11,8 +11,8 @@ class SkinAnalysisService {
   private openai: OpenAI;
 
   constructor(apiKey: string) {
-    if (!apiKey.startsWith('sk-')) {
-      throw new Error("Invalid API key format. Please check your OpenAI API key.");
+    if (!apiKey || apiKey.trim().length < 10) {  // Just check if it's a reasonable length
+      throw new Error("Please enter a valid API key");
     }
 
     this.openai = new OpenAI({
@@ -33,7 +33,7 @@ class SkinAnalysisService {
       console.log("Preparing OpenAI request...");
       
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini",  // Using the correct model name
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
