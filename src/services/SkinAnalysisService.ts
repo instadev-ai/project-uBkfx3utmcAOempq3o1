@@ -31,10 +31,9 @@ class SkinAnalysisService {
       }
 
       console.log("Preparing OpenAI request...");
-
-      // Proceed with the analysis using the current model name
+      
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4v",  // Updated model name
+        model: "gpt-4-0125-preview",  // Updated to the current model name
         messages: [
           {
             role: "user",
