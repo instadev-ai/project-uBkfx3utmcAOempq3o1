@@ -60,7 +60,10 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.3",
     "zod": "^3.23.8",
-    "openai": "^4.85.3"
+    "openai": "^4.85.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "path": "^0.12.7",
+    "this-package-does-not-exist": "^1.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
